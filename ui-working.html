@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Figma Plugin UI</title>
+    <style>
+        /* Reset CSS */
+        html, body, div, span, applet, object, iframe,
+        h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+        a, abbr, acronym, address, big, cite, code,
+        del, dfn, em, img, ins, kbd, q, s, samp,
+        small, strike, strong, sub, sup, tt, var,
+        b, u, i, center,
+        dl, dt, dd, ol, ul, li,
+        fieldset, form, label, legend,
+        table, caption, tbody, tfoot, thead, tr, th, td,
+        article, aside, canvas, details, embed,
+        figure, figcaption, footer, header, hgroup,
+        menu, nav, output, ruby, section, summary,
+        time, mark, audio, video {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            font-size: 100%;
+            font: inherit;
+            vertical-align: baseline;
+        }
+
+        /* HTML5 display-role reset for older browsers */
+        article, aside, details, figcaption, figure,
+        footer, header, hgroup, menu, nav, section {
+            display: block;
+        }
+
+        body {
+            font-family: sans-serif;
+            font-size: 18px;
+            background-color: #f0f0f0;
+            padding: 20px;
+        }
+
+        .container {
+            padding: 1rem;
+        }
+
+        button {
+            background: #0D99FF;
+            border: 1px solid #047AD1;
+            border-radius: 6px;
+            box-shadow: 0px 4px 4px 0px rgba(4, 122, 209, 0.40);
+            color: white;
+            font-weight: 700;
+            letter-spacing: .5px;
+            padding: .5rem 1rem;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: #097BCF;
+            cursor: pointer;
+        }
+
+        .values {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            padding: 1.5rem 1rem;
+        }
+
+        dt {
+            font-size: .75rem;
+            letter-spacing: .5px;
+            margin-bottom: .25rem;
+            padding: 0 .5rem;
+            text-transform: uppercase;
+        }
+
+        dd {
+            font-weight: 700;
+            padding: 0 .5rem;
+        }
+
+        dd#layer-name {
+            margin-bottom: 1rem;
+        }
+
+        .button-group {
+            background: white;
+            align-items: flex-end;
+            border: 1px solid #ddd;
+            bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            left: 0;
+            padding: 1rem;
+            position: fixed;
+            right: 0;
+        }
+
+        .local-collections {
+            margin-top: 20px;
+        }
+
+        .local-collections h1 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: .5rem;
+        }
+
+        .local-collections ul {
+            list-style-type: none;
+        }
+        .local-collections li {
+          background: white;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          margin-bottom: .25rem;
+          padding: .25rem .5rem;
+          position: relative;
+        }
+
+        .local-collections li:last-child {
+          margin-bottom: 0;
+        }
+
+        .local-collections p {
+        }
+    </style>
+</head>
+<body>
+  <div class="container">
+      <div class="values">
+          <dl>
+              <dt>Layer Name</dt>
+              <dd id="layer-name">Undefined</dd>
+              <dt>Fill Color</dt>
+              <dd id="fill-color">Undefined</dd>
+          </dl>
+          <p id="error-message"></p> <!-- Add a paragraph element for error messages -->
+      </div>
+      <h1>Local Collections</h1>
+      <div id="collections-section">
+          <p id="no-collections">No collections yet!</p>
+          <ol id="local-collections-list"></ol>
+      </div>
+      <div class="button-group">
+          <button id="create-variable">Create Collection</button>
+          <button id="check-local-variables" value="Check Local Variables">Check Local Variables</button> <!-- Add a button for checking local variables -->
+      </div>
+  </div>
+
+  <script>
+      // Function to update local collections list
+      function updateLocalCollectionsList(collections) {
+          const list = document.getElementById('local-collections-list');
+          const noCollectionsMessage = document.getElementById('no-collections');
+          list.innerHTML = '';
+
+          if (collections.length > 0) {
+              noCollectionsMessage.style.display = 'none';
+              collections.forEach(collection => {
+                  const listItem = document.createElement('li');
+                  listItem.textContent = `${collection.id}: ${collection.name}`;
+                  list.appendChild(listItem);
+              });
+          } else {
+              noCollectionsMessage.style.display = 'block';
+          }
+      }
+
+      // Add event listener to receive messages from the TypeScript code
+      window.addEventListener('message', event => {
+          const data = event.data.pluginMessage;
+
+          if (data.type === 'updateLayerInfo') {
+              if (data.layerInfo) {
+                  document.getElementById('layer-name').textContent = data.layerInfo.name;
+                  document.getElementById('fill-color').textContent = data.layerInfo.fillColor || 'N/A';
+                  document.getElementById('error-message').textContent = '';
+              } else if (data.error) {
+                  document.getElementById('error-message').textContent = data.error;
+                  document.getElementById('layer-name').textContent = 'Undefined';
+                  document.getElementById('fill-color').textContent = 'Undefined';
+              }
+          } else if (data.type === 'localVariableCollections') {
+              updateLocalCollectionsList(data.collections);
+          } else if (data.type === 'localVariableCollectionsError') {
+              document.getElementById('error-message').textContent = data.errorMessage;
+          }
+      });
+
+      // Add event listener to check local variables when button is clicked
+      document.getElementById('check-local-variables').addEventListener('click', () => {
+          parent.postMessage({ pluginMessage: { type: 'checkLocalVariables' } }, '*');
+      });
+
+      // Add event listener to create variable when button is clicked
+      document.getElementById('create-variable').addEventListener('click', () => {
+          parent.postMessage({ pluginMessage: { type: 'createVariable' } }, '*');
+      });
+  </script>
+</body>

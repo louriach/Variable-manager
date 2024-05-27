@@ -1,0 +1,104 @@
+// Define a function to retrieve the name and fill color of the selected layer
+function getLayerInfo() {
+  // Get the current selection from the Figma document
+  const selection = figma.currentPage.selection;
+
+  // Check if there is exactly one item selected
+  if (selection.length === 1) {
+    // If a single item is selected, retrieve its name and fill color
+    const selectedLayer = selection[0];
+    const layerInfo = {
+      name: selectedLayer.name,
+      fillColor: null as string | null, // Explicitly type fillColor as string | null
+    };
+
+    // Check if the selected layer supports fills and if it's an array
+    if ('fills' in selectedLayer && Array.isArray(selectedLayer.fills) && selectedLayer.fills.length > 0) {
+      // Access the fill color of the first fill
+      const fill = selectedLayer.fills[0];
+      let hexColor: string | null = null;
+
+      // Check if the fill is of type 'SOLID'
+      if (fill.type === 'SOLID') {
+        // Round color values to 2 decimal places before converting to hexadecimal
+        const roundedColor = {
+          r: Math.round(fill.color.r * 255),
+          g: Math.round(fill.color.g * 255),
+          b: Math.round(fill.color.b * 255),
+        };
+        hexColor = rgbToHex(roundedColor.r, roundedColor.g, roundedColor.b);
+      }
+
+      layerInfo.fillColor = hexColor;
+    }
+
+    console.log('Selected layer info:', layerInfo); // Log the selected layer info
+
+    // Send the selected layer info to the UI
+    figma.ui.postMessage({ type: 'updateLayerInfo', layerInfo });
+  } else {
+    // If no layer is selected or multiple layers are selected, send an error message to the UI
+    const errorMessage = selection.length === 0 ? 'Select something first!' : 'Please select exactly one layer on the canvas.';
+    console.log('Error:', errorMessage); // Log the error message
+    figma.ui.postMessage({ type: 'updateLayerInfo', error: errorMessage });
+  }
+}
+
+// Function to check local variable collections
+async function checkLocalVariableCollections() {
+  try {
+    // Fetch local variable collections
+    const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+    console.log('Local variable collections:', localCollections);
+
+    // Check if localCollections is defined and not empty
+    if (localCollections && localCollections.length > 0) {
+      // Send the collections to the UI
+      figma.ui.postMessage({ type: 'localVariableCollections', collections: localCollections });
+    } else {
+      // If no collections exist, send an empty array
+      figma.ui.postMessage({ type: 'localVariableCollections', collections: [] });
+    }
+  } catch (error) {
+    console.error('Error fetching local variable collections:', error);
+    // Send an error message to the UI
+    figma.ui.postMessage({ type: 'localVariableCollectionsError', errorMessage: 'Error fetching local variable collections' });
+  }
+}
+
+// Function to convert RGB color values to hexadecimal
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+// Add an event listener for messages from the UI
+figma.ui.onmessage = async msg => {
+  // Check the message type
+  if (msg.type === 'getLayerInfo') {
+    // Call the function to retrieve layer info
+    getLayerInfo();
+  } else if (msg.type === 'checkLocalVariables') {
+    // Call the function to check local variable collections
+    await checkLocalVariableCollections();
+  } else if (msg.type === 'createVariable') {
+    // Create a variable collection named "Colors"
+    const collection = figma.variables.createVariableCollection('Colors');
+    // Send a message indicating the collection is created
+    figma.ui.postMessage({ type: 'collectionCreated' });
+
+    // Check the local variables again to update the UI
+    await checkLocalVariableCollections();
+  }
+};
+
+// Add an event listener for selection changes
+figma.on('selectionchange', () => {
+  // Call the function to retrieve layer info whenever the selection changes
+  getLayerInfo();
+});
+
+// Run the function to create UI when the plugin is run
+figma.showUI(__html__, { width: 480, height: 480 });
+
+// Request the initial local variable collections when the plugin loads
+checkLocalVariableCollections();
